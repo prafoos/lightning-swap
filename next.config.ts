@@ -13,10 +13,16 @@ const nextConfig: NextConfig = {
       config.externals = [config.externals, /@x402\./];
     }
 
+    // റിയാക്റ്റ് നേറ്റീവ് മൊബൈൽ ഡിപെൻഡൻസി എറർ ഫിക്സ് ചെയ്യാൻ ഇത് ചേർക്കുക
+    if (!config.resolve.fallback) {
+      config.resolve.fallback = {};
+    }
+    config.resolve.fallback['@react-native-async-storage/async-storage'] = false;
+
     return config;
   },
   
-  /* ടർബോപാക്ക് ഓഫ് ചെയ്യാനുള്ള ലൈൻ - ടൈപ്പ് എറർ വരാതിരിക്കാൻ ഒരു @ts-ignore ചേർക്കുന്നു */
+  /* ടർബോപാക്ക് ഓഫ് ചെയ്യാനുള്ള ലൈൻ */
   experimental: {
     // @ts-ignore
     turbopack: false,
