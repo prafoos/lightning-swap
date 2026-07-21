@@ -7,11 +7,17 @@ const nextConfig: NextConfig = {
       config.externals = [];
     }
 
+   if (Array.isArray(config.externals)) {
+  config.externals.push(/^@x402/);
+} else {
+  config.externals = [config.externals, /^@x402/];
+} 
+
     if (Array.isArray(config.externals)) {
-      config.externals.push(/@x402\./);
+      config.externals.push(/^@x402/);
     } else {
-      config.externals = [config.externals, /@x402\./];
-    }
+      config.externals = [config.externals, /^@x402/];
+    } 
 
     // റിയാക്റ്റ് നേറ്റീവ് മൊബൈൽ ഡിപെൻഡൻസി എറർ ഫിക്സ് ചെയ്യാൻ ഇത് ചേർക്കുക
     if (!config.resolve.fallback) {

@@ -10,15 +10,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
   }
 
-  const apiKey = process.env.NEXT_PUBLIC_ZEROX_API_KEY || '';
+ 
 
   try {
     const res = await fetch(
-      `https://base.api.0x.org/swap/v1/quote?buyToken=${buyToken}&sellToken=${sellToken}&sellAmount=${sellAmount}`,
+      `https://aggregator-api.kyberswap.com/base/api/v1/routes?tokenIn=${sellToken}&tokenOut=${buyToken}&amountIn=${sellAmount}`,
       {
         headers: {
-          '0x-api-key': apiKey,
-        },
+          'Content-Type': 'application/json',
+          'x-client-id': 'LightningSwap'
+        }
       }
     );
 

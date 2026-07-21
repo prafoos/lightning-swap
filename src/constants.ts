@@ -10,9 +10,9 @@ export const SUPPORTED_TOKENS: Token[] = [
   {
     symbol: 'ETH',
     name: 'Ether',
-    address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // Native ETH
+    address: '0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE', // Native ETH
     decimals: 18,
-    logoURI: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png'
+    logoURI: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png' 
   },
   {
     symbol: 'USDC',
@@ -22,9 +22,9 @@ export const SUPPORTED_TOKENS: Token[] = [
     logoURI: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png'
   },
   {
-    symbol: 'cbBTC',
+    symbol: 'cbBTC', 
     name: 'Coinbase Wrapped BTC',
-    address: '0xcBdB9aa4B131f137F013b01a7479ed873aC79247',
+    address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
     decimals: 8,
     logoURI: 'https://assets.coingecko.com/coins/images/39943/small/cbBTC.png'
   },

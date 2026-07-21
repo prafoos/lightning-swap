@@ -13,12 +13,30 @@ interface Token {
   decimals: number;
   logoURI: string;
 }
+interface SwapHistoryItem {
+  id: string;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  toAmount: string;
+  txHash: string;
+  timestamp: string;
+}
 
+const saveSwapToHistory = (newItem: SwapHistoryItem) => {
+  try {
+    const existingHistory = JSON.parse(localStorage.getItem('swap_history') || '[]');
+    const updatedHistory = [newItem, ...existingHistory];
+    localStorage.setItem('swap_history', JSON.stringify(updatedHistory));
+  } catch (error) {
+    console.error("Failed to save history:", error);
+  }
+};
 export default function SwapPanel() {
   const { isConnected, address } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { sendTransaction } = useSendTransaction();
-
+  const { sendTransactionAsync } = useSendTransaction();
+const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   // ടോക്കൺ സ്റ്റേറ്റുകൾ
   const [sellToken, setSellToken] = useState<Token>(SUPPORTED_TOKENS[0]);
   const [buyToken, setBuyToken] = useState<Token>(SUPPORTED_TOKENS[1]);
@@ -49,14 +67,20 @@ export default function SwapPanel() {
     );
 
     const data = await res.json();
-
-        if (data && data.buyAmount) {
-          // കിട്ടിയ എമൗണ്ടിനെ ഹ്യൂമൻ റീഡബിൾ ഫോർമാറ്റിലേക്ക് മാറ്റുന്നു
-          const formattedBuyAmount = formatUnits(BigInt(data.buyAmount), buyToken.decimals);
-          // ദശാംശ സംഖ്യകൾ ഭംഗിയാക്കാൻ 6 അക്കമായി പരിമിതപ്പെടുത്തുന്നു
-          setBuyAmount(Number(formattedBuyAmount).toFixed(6));
-          setSwapQuote(data); // ട്രാൻസാക്ഷൻ ഡാറ്റ പിന്നീട് ഉപയോഗിക്കാൻ സേവ് ചെയ്യുന്നു
-        }
+    console.log("0x API Response:", data); //
+       if (data && data.data && data.data.routeSummary) {
+      // KyberSwap തരുന്ന outputAmount എടുക്കുന്നു
+      const rawBuyAmount = data.data.routeSummary.amountOut; 
+      
+      // കിട്ടിയ എമൗണ്ടിനെ ഹ്യൂമൻ റീഡബിൾ ഫോർമാറ്റിലേക്ക് മാറ്റുന്നു
+      const formattedBuyAmount = formatUnits(BigInt(rawBuyAmount), buyToken.decimals);
+      
+      // ദശാംശ സംഖ്യകൾ ഭംഗിയാക്കാൻ 6 അക്കമായി പരിമിതപ്പെടുത്തുന്നു
+      setBuyAmount(Number(formattedBuyAmount).toFixed(6));
+      
+      // ട്രാൻസാക്ഷൻ ഡാറ്റ പിന്നീട് ഉപയോഗിക്കാൻ സേവ് ചെയ്യുന്നു
+      setSwapQuote(data); 
+    } 
       } catch (error) {
         console.error('Error fetching 0x quote:', error);
       } finally {
@@ -86,26 +110,49 @@ export default function SwapPanel() {
     if (!swapQuote) return;
 
     try {
-      // വഗ്മി വഴി വാലറ്റിലേക്ക് ട്രാൻസാക്ഷൻ പോപ്പ്-അപ്പ് അയക്കുന്നു
-      sendTransaction({
+      const hash = await sendTransactionAsync({
         to: swapQuote.to,
         data: swapQuote.data,
         value: BigInt(swapQuote.value),
       });
+
+      if (hash) {
+        saveSwapToHistory({
+          id: Date.now().toString(),
+          fromToken: sellToken.symbol,
+          toToken: buyToken.symbol,
+          fromAmount: sellAmount,
+          toAmount: buyAmount,
+          txHash: hash,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+      }
     } catch (error) {
       console.error('Swap execution failed:', error);
     }
   };
 
+   
+
   return (
     <div className="w-full max-w-[460px] bg-zinc-900/90 border border-zinc-800/80 rounded-3xl p-4 backdrop-blur-xl shadow-2xl">
       {/* Panel Header */}
       <div className="flex items-center justify-between px-1 pb-3">
-        <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Swap</h2>
-        <span className="text-xs font-semibold px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20">
-          Base Mainnet
-        </span>
-      </div>
+  <div className="flex items-center gap-2">
+    <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Swap</h2>
+    <span className="text-xs font-semibold px-2.5 py-0.5 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20">
+      Base Mainnet
+    </span>
+  </div>
+
+  {/* History Button */}
+  <button 
+    onClick={() => setIsHistoryOpen(true)}
+    className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700/50 transition flex items-center gap-1.5"
+  >
+    📜 History
+  </button>
+</div>
 
       {/* Input Section (You Pay) */}
       <div className="bg-zinc-950/60 border border-zinc-800/60 rounded-2xl p-4 mb-1.5 focus-within:border-zinc-700/80 transition">
