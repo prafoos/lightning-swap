@@ -1,11 +1,33 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAccount, useSendTransaction } from 'wagmi';
-import { useConnectModal } from '@rainbow-me/rainbowkit';
-import { parseUnits, formatUnits } from 'viem';
+import { useAccount, useSendTransaction, useReadContract, useWriteContract, useBalance } from 'wagmi';
+import { useConnectModal, ConnectButton } from '@rainbow-me/rainbowkit';
+import { parseUnits, formatUnits, maxUint256 } from 'viem';
 import { SUPPORTED_TOKENS } from '@/constants';
-
+// Standard ERC20 ABI (Allowance & Approve ചെക്ക് ചെയ്യാൻ)
+const erc20Abi = [
+  {
+    constant: true,
+    inputs: [
+      { name: "_owner", type: "address" },
+      { name: "_spender", type: "address" }
+    ],
+    name: "allowance",
+    outputs: [{ name: "", type: "uint256" }],
+    type: "function"
+  },
+  {
+    constant: false,
+    inputs: [
+      { name: "_spender", type: "address" },
+      { name: "_value", type: "uint256" }
+    ],
+    name: "approve",
+    outputs: [{ name: "", type: "bool" }],
+    type: "function"
+  }
+] as const; 
 interface Token {
   symbol: string;
   name: string;
@@ -43,6 +65,84 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [sellAmount, setSellAmount] = useState<string>('');
   const [buyAmount, setBuyAmount] = useState<string>('');
   
+  const { writeContractAsync: approveAsync, isPending: isApproving } = useWriteContract();
+
+  const KYBERSWAP_ROUTER = "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5";
+  const isNativeETH = sellToken.symbol === "ETH";
+
+  // 1. Allowance ചെക്ക് ചെയ്യുന്നു
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: sellToken.address as `0x${string}`,
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: address ? [address, KYBERSWAP_ROUTER] : undefined,
+    query: {
+      enabled: !!address && !isNativeETH && !!sellToken.address,
+    }
+  });
+
+  // 2. Token Balance എമ്യൂലേഷൻ (Sell & Buy Tokens)
+  const { data: sellBalanceData, refetch: refetchSellBalance, error: sellBalanceError } = useBalance({
+    address,
+    token: sellToken.symbol === "ETH" ? undefined : (sellToken.address as `0x${string}`),
+    query: {
+      enabled: !!address,
+    },
+  }); 
+
+  useEffect(() => {
+    console.log("Sell Token Details:", sellToken);
+    console.log("Sell Balance Data:", sellBalanceData);
+    if (sellBalanceError) {
+      console.error("Balance Fetch Error:", sellBalanceError);
+    }
+  }, [sellToken, sellBalanceData, sellBalanceError]);
+   
+  // MAX Button Handler
+  const handleMax = () => {
+    if (sellBalanceData?.formatted) {
+      if (sellToken?.symbol === 'ETH') {
+        const maxEth = Math.max(0, parseFloat(sellBalanceData.formatted) - 0.0005);
+        setSellAmount(maxEth.toString());
+      } else {
+        setSellAmount(sellBalanceData.formatted);
+      }
+    }
+  };  
+  const { data: buyBalanceData, refetch: refetchBuyBalance } = useBalance({
+    address,
+    token: buyToken.symbol === "ETH" ? undefined : (buyToken.address as `0x${string}`),
+    query: {
+      enabled: !!address,
+    },
+  }); 
+
+  // 3. വിൽക്കാൻ ഉദ്ദേശിക്കുന്ന തുക BigInt ആക്കി മാറ്റുന്നു
+  const requiredAmount = sellAmount && !isNaN(Number(sellAmount))
+    ? parseUnits(sellAmount, sellToken.decimals || 18)
+    : BigInt(0);
+
+  const currentAllowance = (allowance as bigint) ?? BigInt(0);
+  const needsApproval = !isNativeETH && currentAllowance < requiredAmount;
+
+  // 4. Token Approve ചെയ്യാനുള്ള ഫങ്ഷൻ
+  const handleApprove = async () => {
+    try {
+      const tx = await approveAsync({
+        address: sellToken.address as `0x${string}`,
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [KYBERSWAP_ROUTER, maxUint256],
+      });
+      
+      if (tx) {
+        alert("Approval Successful!");
+        refetchAllowance();
+      }
+    } catch (err) {
+      console.error("Approval failed:", err);
+    }
+  };
   // API ഡാറ്റ സ്റ്റോർ ചെയ്യാൻ
   const [swapQuote, setSwapQuote] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -105,15 +205,71 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     setBuyAmount(sellAmount);
   };
 
-  // യഥാർത്ഥ സ്വാപ്പ് നടത്തുന്ന ഫങ്ഷൻ
+
+   // യഥാർത്ഥ സ്വാപ്പ് നടത്തുന്ന ഫങ്ഷൻ
   const handleExecuteSwap = async () => {
     if (!swapQuote) return;
-
+    if (sellToken?.symbol === buyToken?.symbol) return; 
     try {
+      let executableData = swapQuote.data?.encodedSwapData || swapQuote.encodedSwapData;
+      let routerAddress = swapQuote.data?.routerAddress || swapQuote.routerAddress;
+      
+      // KyberSwap തിരികെ നൽകുന്ന ഏതെങ്കിലും ഒരു field-ൽ value കാണും
+      let rawValue = swapQuote.data?.value || swapQuote.data?.amountIn || swapQuote.value || "0";
+
+      // Native ETH അല്ല വിൽക്കുന്നത് എങ്കിൽ (ഉദാഹരണത്തിന് USDC/USDT) value എപ്പോഴും 0 ആയിരിക്കണം
+      if (sellToken.symbol !== "ETH") {
+        rawValue = "0";
+      }
+
+      // 1. build API വഴി calldata ലഭിച്ചിട്ടില്ലെങ്കിൽ build ചെയ്യുക
+      if (!executableData && swapQuote.data?.routeSummary) {
+        console.log("Building transaction via KyberSwap Build API...");
+
+        const buildResponse = await fetch("https://aggregator-api.kyberswap.com/base/api/v1/route/build", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-client-id": "LightningSwap"
+          },
+          body: JSON.stringify({
+            routeSummary: swapQuote.data.routeSummary,
+            recipient: address,
+            slippageTolerance: 50,
+            sender: address,
+          }),
+        });
+
+        const buildResult = await buildResponse.json();
+
+        if (buildResult.code === 0 && buildResult.data) {
+          executableData = buildResult.data.data || buildResult.data.encodedSwapData;
+          routerAddress = buildResult.data.routerAddress || routerAddress;
+          
+          // Native ETH ആണെങ്കിൽ വിൽക്കുന്ന തുക (amountIn) തന്നെ value ആയി പാസ് ചെയ്യണം
+          if (sellToken.symbol === "ETH") {
+            rawValue = buildResult.data.value || buildResult.data.amountIn || parseUnits(sellAmount, 18).toString();
+          } else {
+            rawValue = "0";
+          }
+        } else {
+          alert("KyberSwap Build API Failed: " + (buildResult.message || "Unknown error"));
+          return;
+        }
+      }
+
+      if (!executableData) {
+        alert("No executable transaction data found!");
+        return;
+      }
+
+      console.log("Submitting Tx with Value:", rawValue);
+
+      // 2. Transaction അയക്കുന്നു
       const hash = await sendTransactionAsync({
-        to: swapQuote.to,
-        data: swapQuote.data,
-        value: BigInt(swapQuote.value),
+        to: routerAddress as `0x${string}`,
+        data: executableData as `0x${string}`,
+        value: BigInt(rawValue), // <-- ETH സ്പെസിഫിക് Value പാസ് ചെയ്യുന്നു
       });
 
       if (hash) {
@@ -124,26 +280,32 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
           fromAmount: sellAmount,
           toAmount: buyAmount,
           txHash: hash,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: new Date().toLocaleTimeString(),
         });
+
+        alert("Swap Executed Successfully!");
+        refetchAllowance();
       }
+
     } catch (error) {
-      console.error('Swap execution failed:', error);
+      console.error("Swap execution failed:", error);
     }
-  };
+  }; 
 
    
 
   return (
-    <div className="w-full max-w-[460px] bg-zinc-900/90 border border-zinc-800/80 rounded-3xl p-4 backdrop-blur-xl shadow-2xl">
+    <div className="w-full max-w-[800px] bg-zinc-900/90 border border-zinc-800/80 rounded-3xl p-6 backdrop-blur-xl">  
       {/* Panel Header */}
-      <div className="flex items-center justify-between px-1 pb-3">
-  <div className="flex items-center gap-2">
-    <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Swap</h2>
-    <span className="text-xs font-semibold px-2.5 py-0.5 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20">
-      Base Mainnet
-    </span>
-  </div>
+   <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-zinc-100">Swap</h2>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Base Mainnet
+            </span>
+          </div>
+          <ConnectButton />
+        </div>
 
   {/* History Button */}
   <button 
@@ -152,14 +314,25 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   >
     📜 History
   </button>
-</div>
+
 
       {/* Input Section (You Pay) */}
       <div className="bg-zinc-950/60 border border-zinc-800/60 rounded-2xl p-4 mb-1.5 focus-within:border-zinc-700/80 transition">
-        <div className="flex justify-between text-xs text-zinc-400 mb-2">
+        <div className="flex justify-between items-center text-xs text-zinc-400 mb-2">
           <span>You pay</span>
-          <span>Balance: 0.00</span>
-        </div>
+          <div className="flex items-center gap-1.5">
+            <span>
+              Balance: {sellBalanceData ? Number(sellBalanceData.formatted).toFixed(4) : '0.00'}
+            </span>
+            <button
+              type="button"
+              onClick={handleMax}
+              className="text-[10px] bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 font-bold px-1.5 py-0.5 rounded transition border border-blue-500/30"
+            >
+              MAX
+            </button>
+          </div>
+        </div> 
         <div className="flex justify-between items-center gap-4">
           <input
             type="number"
@@ -168,7 +341,7 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
             onChange={(e) => setSellAmount(e.target.value)}
             className="w-full bg-transparent text-3xl font-medium text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
-          <select
+          <select 
             value={sellToken.symbol}
             onChange={(e) => {
               const token = SUPPORTED_TOKENS.find(t => t.symbol === e.target.value);
@@ -201,7 +374,9 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
       <div className="bg-zinc-950/60 border border-zinc-800/60 rounded-2xl p-4 mt-1.5 focus-within:border-zinc-700/80 transition">
         <div className="flex justify-between text-xs text-zinc-400 mb-2">
           <span>You receive</span>
-          <span>{isLoading ? 'Fetching quote...' : 'Estimated'}</span>
+          <span className="text-xs text-zinc-400">
+  {isLoading ? 'Fetching quote...' : `Balance: ${buyBalanceData?.formatted ? Number(buyBalanceData.formatted).toFixed(4) : "0.00"}`}
+</span>
         </div>
         <div className="flex justify-between items-center gap-4">
           <input
@@ -228,23 +403,82 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
         </div>
       </div>
 
-      {/* Action Button Section */}
-      {!isConnected ? (
-        <button
-          onClick={() => openConnectModal?.()}
-          className="w-full mt-4 bg-blue-600 h-[48px] rounded-xl flex justify-center items-center font-bold text-white transition hover:bg-blue-700 active:scale-[0.98] text-base"
-        >
-          Connect Wallet
-        </button>
-      ) : (
-        <button
-          onClick={handleExecuteSwap}
-          disabled={!swapQuote || isLoading}
-          className="w-full mt-4 bg-blue-600 h-[48px] rounded-xl flex justify-center items-center font-bold text-white transition hover:bg-blue-700 active:scale-[0.98] disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-base"
-        >
-          {isLoading ? 'Fetching Route...' : 'Swap'}
-        </button>
-      )}
-    </div>
-  );
-}
+    {/* Action Button Section */}
+          {!isConnected ? (
+            <button
+              onClick={() => openConnectModal?.()}
+              className="w-full mt-4 bg-blue-600 h-[48px] rounded-xl flex justify-center items-center font-bold text-white"
+            >
+              Connect Wallet
+            </button>
+          ) : needsApproval ? (
+            <button
+              onClick={handleApprove}
+              disabled={isApproving}
+              className="w-full mt-4 bg-yellow-500 hover:bg-yellow-600 text-black h-[48px] rounded-xl flex justify-center items-center font-bold transition disabled:opacity-50"
+            >
+              {isApproving ? "Approving..." : `Approve ${sellToken.symbol}`}
+            </button>
+          ) : (
+           <button
+  onClick={handleExecuteSwap}
+  disabled={!swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)} 
+  className="w-full mt-4 py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-medium rounded-xl transition-all" 
+>
+  {sellToken?.symbol === buyToken?.symbol
+    ? "Select different tokens"
+    : isLoading
+    ? "Fetching Route..."
+    : "Swap"}
+</button> 
+          )}
+          {/* Swap History Modal */}
+      {isHistoryOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-3xl w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-zinc-800">
+              <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+                📜 Swap History
+              </h3>
+              <button 
+                onClick={() => setIsHistoryOpen(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              {(() => {
+                const savedHistory = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('swap_history') || '[]') : [];
+                if (savedHistory.length === 0) {
+                  return <p className="text-sm text-zinc-500 text-center py-8">No swaps recorded yet</p>;
+                }
+                return savedHistory.map((tx: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-center p-3 bg-zinc-950/60 rounded-2xl border border-zinc-800/80 text-sm">
+                    <div>
+                      <p className="text-zinc-200 font-semibold">
+  {tx.sellAmount || tx.fromAmount || tx.amount || '0'} {tx.sellToken?.symbol || tx.sellToken || tx.fromToken || ''} ➔ {tx.buyAmount || tx.toAmount || ''} {tx.buyToken?.symbol || tx.buyToken || tx.toToken || ''}
+</p> 
+                      <p className="text-[10px] text-zinc-500">{tx.timestamp || tx.date}</p>
+                    </div>
+                    {tx.hash && (
+                      <a 
+                        href={`https://basescan.org/tx/${tx.hash}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-xs text-blue-400 hover:underline bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20"
+                      >
+                        Basescan ↗
+                      </a>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )} 
+        </div>
+      );
+      }

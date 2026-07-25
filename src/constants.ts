@@ -17,7 +17,7 @@ export const SUPPORTED_TOKENS: Token[] = [
   {
     symbol: 'USDC',
     name: 'USD Coin',
-    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913',
+    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', 
     decimals: 6,
     logoURI: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png'
   },
@@ -40,6 +40,41 @@ export const SUPPORTED_TOKENS: Token[] = [
     name: 'Aerodrome',
     address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631',
     decimals: 18,
-    logoURI: 'https://assets.coingecko.com/coins/images/31924/small/Aero.png'
-  }
+    logoURI: 'https://assets.coingecko.com/coins/images/31924/small/Aero.png',
+  },
+  {
+    symbol: 'DAI',
+    name: 'Dai Stablecoin',
+    address: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
+    decimals: 18,
+    logoURI: ''
+  },
+  {
+    symbol: 'USDT',
+    name: 'Tether USD',
+    address: '0xfde4C96c813eD5385353723380B2256E3917aC24',
+    decimals: 6,
+    logoURI: ''
+  },
+  {
+    symbol: 'WETH',
+    name: 'Wrapped Ether',
+    address: '0x4200000000000000000000000000000000000006',
+    decimals: 18,
+    logoURI: ''
+  },
+  {
+    symbol: 'BRETT',
+    name: 'Brett',
+    address: '0x532f27101965dd16442E59d40670FaF5eBB142E4',
+    decimals: 18,
+    logoURI: ''
+  },
+  {
+    symbol: 'DEGEN',
+    name: 'Degen',
+    address: '0x4ed4E862860bed51a9570b96d89af5e1b0Efefed',
+    decimals: 18,
+    logoURI: ''
+  } 
 ];
