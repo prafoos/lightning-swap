@@ -1,10 +1,10 @@
-'use client';
-
+ 'use client';
 import React, { useState, useEffect } from 'react';
-import { useAccount, useSendTransaction, useReadContract, useWriteContract, useBalance } from 'wagmi';
+import { useAccount, useReadContract, useWriteContract, useBalance, useSendTransaction } from 'wagmi';
 import { useConnectModal, ConnectButton } from '@rainbow-me/rainbowkit';
 import { parseUnits, formatUnits, maxUint256 } from 'viem';
 import { SUPPORTED_TOKENS } from '@/constants';
+import { TokenSelectModal } from './TokenSelectModal'; 
 // Standard ERC20 ABI (Allowance & Approve ചെക്ക് ചെയ്യാൻ)
 const erc20Abi = [
   {
@@ -58,6 +58,17 @@ export default function SwapPanel() {
   const { isConnected, address } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { sendTransactionAsync } = useSendTransaction();
+  // Modal State & Handler
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeSide, setActiveSide] = useState<'pay' | 'receive'>('pay');
+
+  const handleSelectToken = (token: typeof SUPPORTED_TOKENS[0]) => {
+    if (activeSide === 'pay') {
+      setSellToken(token);
+    } else {
+      setBuyToken(token);
+    }
+  }; 
 const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   // ടോക്കൺ സ്റ്റേറ്റുകൾ
   const [sellToken, setSellToken] = useState<Token>(SUPPORTED_TOKENS[0]);
@@ -89,14 +100,19 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
       enabled: !!address,
     },
   }); 
-
+   // 3. Insufficient Balance Validation Logic
+const payAmount = Number(sellAmount || 0);
+const currentBalance = Number(sellBalanceData?.formatted || 0);
+const isInsufficientBalance = payAmount > 0 && payAmount > currentBalance;
   useEffect(() => {
-    console.log("Sell Token Details:", sellToken);
-    console.log("Sell Balance Data:", sellBalanceData);
-    if (sellBalanceError) {
-      console.error("Balance Fetch Error:", sellBalanceError);
-    }
-  }, [sellToken, sellBalanceData, sellBalanceError]);
+  console.log("Sell Token Details:", sellToken);
+  console.log("Sell Balance Data:", sellBalanceData);
+  console.log("Check Balance Logic:", { payAmount, currentBalance, isInsufficientBalance });
+  
+  if (sellBalanceError) {
+    console.error("Balance Fetch Error:", sellBalanceError);
+  }
+}, [sellToken, sellBalanceData, sellBalanceError, payAmount, currentBalance]); 
    
   // MAX Button Handler
   const handleMax = () => {
@@ -284,7 +300,12 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
         });
 
         alert("Swap Executed Successfully!");
+
+      setTimeout(() => {
         refetchAllowance();
+        refetchSellBalance();
+        refetchBuyBalance();
+      }, 3000); 
       }
 
     } catch (error) {
@@ -341,20 +362,18 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
             onChange={(e) => setSellAmount(e.target.value)}
             className="w-full bg-transparent text-3xl font-medium text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
-          <select 
-            value={sellToken.symbol}
-            onChange={(e) => {
-              const token = SUPPORTED_TOKENS.find(t => t.symbol === e.target.value);
-              if (token) setSellToken(token);
-            }}
-            className="bg-zinc-800 hover:bg-zinc-700/80 text-white font-semibold py-2 px-3.5 rounded-xl outline-none cursor-pointer border border-zinc-700/50 text-sm transition"
-          >
-            {SUPPORTED_TOKENS.map((token) => (
-              <option key={token.symbol} value={token.symbol}>
-                {token.symbol}
-              </option>
-            ))}
-          </select>
+          <button
+  type="button"
+  onClick={() => {
+    setActiveSide('pay');
+    setIsModalOpen(true);
+  }}
+  className="flex items-center gap-2 bg-[#23262F] hover:bg-[#2C303B] border border-gray-700/50 px-3 py-1.5 rounded-xl text-white font-bold transition-all shrink-0"
+>
+  <img src={sellToken.logoURI} alt={sellToken.symbol} className="w-5 h-5 rounded-full" />
+  <span>{sellToken.symbol}</span>
+  <span className="text-xs text-gray-400">▼</span>
+</button>
         </div>
       </div>
 
@@ -386,20 +405,18 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
             readOnly
             className="w-full bg-transparent text-3xl font-medium text-white outline-none cursor-not-allowed"
           />
-          <select
-            value={buyToken.symbol}
-            onChange={(e) => {
-              const token = SUPPORTED_TOKENS.find(t => t.symbol === e.target.value);
-              if (token) setBuyToken(token);
-            }}
-            className="bg-zinc-800 hover:bg-zinc-700/80 text-white font-semibold py-2 px-3.5 rounded-xl outline-none cursor-pointer border border-zinc-700/50 text-sm transition"
-          >
-            {SUPPORTED_TOKENS.map((token) => (
-              <option key={token.symbol} value={token.symbol}>
-                {token.symbol}
-              </option>
-            ))}
-          </select>
+          <button
+  type="button"
+  onClick={() => {
+    setActiveSide('receive');
+    setIsModalOpen(true);
+  }}
+  className="flex items-center gap-2 bg-[#23262F] hover:bg-[#2C303B] border border-gray-700/50 px-3 py-1.5 rounded-xl text-white font-bold transition-all shrink-0"
+>
+  <img src={buyToken.logoURI} alt={buyToken.symbol} className="w-5 h-5 rounded-full" />
+  <span>{buyToken.symbol}</span>
+  <span className="text-xs text-gray-400">▼</span>
+</button>
         </div>
       </div>
 
@@ -420,13 +437,21 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
               {isApproving ? "Approving..." : `Approve ${sellToken.symbol}`}
             </button>
           ) : (
-           <button
+          <button
   onClick={handleExecuteSwap}
-  disabled={!swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)} 
-  className="w-full mt-4 py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-medium rounded-xl transition-all" 
+  disabled={!swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol) || isInsufficientBalance}
+  className={`w-full mt-4 py-3 px-4 rounded-xl font-bold transition-all ${
+    isInsufficientBalance
+      ? "bg-red-500/20 text-red-500 cursor-not-allowed border border-red-500/30"
+      : !swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)
+      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+      : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+  }`}
 >
   {sellToken?.symbol === buyToken?.symbol
     ? "Select different tokens"
+    : isInsufficientBalance
+    ? `Insufficient ${sellToken?.symbol || "balance"}`
     : isLoading
     ? "Fetching Route..."
     : "Swap"}
@@ -478,7 +503,13 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
             </div>
           </div>
         </div>
-      )} 
+      )}
+       <TokenSelectModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        tokens={SUPPORTED_TOKENS}
+        onSelectToken={handleSelectToken}
+      /> 
         </div>
       );
       }
