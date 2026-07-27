@@ -58,6 +58,12 @@ export default function SwapPanel() {
   const { isConnected, address } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { sendTransactionAsync } = useSendTransaction();
+  const { data: nativeEthBalance } = useBalance({
+    address,
+    query: {
+      enabled: !!address,
+    },
+  });
   // Modal State & Handler
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeSide, setActiveSide] = useState<'pay' | 'receive'>('pay');
@@ -356,7 +362,56 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
               Base Mainnet
             </span>
           </div>
-          <ConnectButton />
+          <ConnectButton.Custom>
+  {({ account, chain, openAccountModal, openConnectModal, mounted }) => {
+    const ready = mounted;
+    const connected = ready && account && chain;
+
+    const ethBalance = nativeEthBalance?.formatted 
+      ? Number(nativeEthBalance.formatted).toFixed(4) 
+      : "0";
+
+    return (
+      <div
+        {...(!ready && {
+          'aria-hidden': true,
+          style: {
+            opacity: 0,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          },
+        })}
+      >
+        {(() => {
+          if (!connected) {
+            return (
+              <button
+                onClick={openConnectModal}
+                type="button"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium"
+              >
+                Connect Wallet
+              </button>
+            );
+          }
+
+          return (
+            <button
+              onClick={openAccountModal}
+              type="button"
+              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-xl text-sm"
+            >
+              <span>{Number(ethBalance) > 0 ? `${ethBalance} ETH` : "0 ETH"}</span>
+              <span className="bg-zinc-700 px-2 py-0.5 rounded-lg">
+                {account.displayName}
+              </span>
+            </button>
+          );
+        })()}
+      </div>
+    );
+  }}
+</ConnectButton.Custom>
         </div>
 
   {/* History Button */}
