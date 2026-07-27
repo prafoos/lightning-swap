@@ -1,6 +1,10 @@
 'use client';
 
-import SwapPanel from '@/components/SwapPanel';
+import dynamic from 'next/dynamic';
+
+const SwapPanel = dynamic(() => import('@/components/SwapPanel'), {
+  ssr: false,
+}); 
 import { Providers } from './providers'; // curly braces { } ചേർത്തത് ശ്രദ്ധിക്കുക
 
 
@@ -12,7 +16,7 @@ export default function Home() {
         
         {/* Site Header / Title at Left Corner */}
         {/* Site Header / Title at Left Corner & Socials at Right */}
-       <header className="relative z-50 w-full max-w-[1200px] flex items-center justify-between pt-8 px-4">
+        <header className="relative z-10 w-full max-w-[1200px] flex items-center justify-between pt-8 px-4"> 
           <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight pointer-events-auto"> 
             Lightning <span className="text-blue-500">Swap</span>
           </h1>
