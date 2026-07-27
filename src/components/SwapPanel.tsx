@@ -75,6 +75,8 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [buyToken, setBuyToken] = useState<Token>(SUPPORTED_TOKENS[1]);
   const [sellAmount, setSellAmount] = useState<string>('');
   const [buyAmount, setBuyAmount] = useState<string>('');
+  const [swapQuote, setSwapQuote] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
   const { writeContractAsync: approveAsync, isPending: isApproving } = useWriteContract();
 
@@ -101,7 +103,7 @@ const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     },
   }); 
    // 3. Insufficient Balance Validation Logic
-const payAmount = Number(sellAmount || 0);
+  const payAmount = Number(sellAmount || 0);
 const currentBalance = Number(sellBalanceData?.formatted || 0);
 const isInsufficientBalance = payAmount > 0 && payAmount > currentBalance;
   useEffect(() => {
@@ -113,7 +115,39 @@ const isInsufficientBalance = payAmount > 0 && payAmount > currentBalance;
     console.error("Balance Fetch Error:", sellBalanceError);
   }
 }, [sellToken, sellBalanceData, sellBalanceError, payAmount, currentBalance]); 
-   
+   // swapQuote-ൽ നിന്നോ sellToken-ൽ നിന്നോ dynamic price എടുക്കുന്നു
+  // 1. sellToken-ൽ ഡയറക്ട് priceUSD ഉണ്ടോ എന്ന് നോക്കുന്നു
+let tokenPriceUSD = Number(
+  (sellToken as any)?.priceUSD || 
+  (sellToken as any)?.price || 
+  0
+);
+
+const payVal = parseFloat(sellAmount || "0");
+const receiveVal = parseFloat(buyAmount || "0");
+const buySym = (buyToken?.symbol || "").toUpperCase();
+const sellSym = (sellToken?.symbol || "").toUpperCase();
+
+let calculatedUSD = 0;
+
+if (payVal > 0) {
+  // KyberSwap quote-ൽ നിന്ന് amountInUsd ഉപയോഗിക്കുക (ഏറ്റവും കൃത്യം)
+  const amountInUsd = Number(swapQuote?.data?.routeSummary?.amountInUsd || 0);
+  
+  if (amountInUsd > 0) {
+    calculatedUSD = amountInUsd;
+  } 
+  // Fallback (quote ഇല്ലെങ്കിൽ)
+  else if (["USDC", "USDT", "DAI"].includes(buySym)) {
+    calculatedUSD = receiveVal;
+  } else if (tokenPriceUSD > 0) {
+    calculatedUSD = payVal * tokenPriceUSD;
+  }
+} 
+
+const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0 
+  ? calculatedUSD.toFixed(4) 
+  : calculatedUSD.toFixed(2);        
   // MAX Button Handler
   const handleMax = () => {
     if (sellBalanceData?.formatted) {
@@ -159,9 +193,6 @@ const isInsufficientBalance = payAmount > 0 && payAmount > currentBalance;
       console.error("Approval failed:", err);
     }
   };
-  // API ഡാറ്റ സ്റ്റോർ ചെയ്യാൻ
-  const [swapQuote, setSwapQuote] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // യൂസർ എമൗണ്ട് ടൈപ്പ് ചെയ്യുമ്പോൾ ലൈവ് ക്വോട്ട് എടുക്കാനുള്ള ഫങ്ഷൻ
   useEffect(() => {
@@ -375,6 +406,11 @@ const isInsufficientBalance = payAmount > 0 && payAmount > currentBalance;
   <span className="text-xs text-gray-400">▼</span>
 </button>
         </div>
+        <div className="text-xs text-zinc-400 font-medium pl-1 mt-1">
+  {sellAmount && parseFloat(sellAmount) > 0 
+    ? `~$${totalUSDValue}` 
+    : "$0.00"}
+</div> 
       </div>
 
       {/* Switch Button */}
@@ -421,42 +457,45 @@ const isInsufficientBalance = payAmount > 0 && payAmount > currentBalance;
       </div>
 
     {/* Action Button Section */}
-          {!isConnected ? (
-            <button
-              onClick={() => openConnectModal?.()}
-              className="w-full mt-4 bg-blue-600 h-[48px] rounded-xl flex justify-center items-center font-bold text-white"
-            >
-              Connect Wallet
-            </button>
-          ) : needsApproval ? (
-            <button
-              onClick={handleApprove}
-              disabled={isApproving}
-              className="w-full mt-4 bg-yellow-500 hover:bg-yellow-600 text-black h-[48px] rounded-xl flex justify-center items-center font-bold transition disabled:opacity-50"
-            >
-              {isApproving ? "Approving..." : `Approve ${sellToken.symbol}`}
-            </button>
-          ) : (
-          <button
-  onClick={handleExecuteSwap}
-  disabled={!swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol) || isInsufficientBalance}
-  className={`w-full mt-4 py-3 px-4 rounded-xl font-bold transition-all ${
-    isInsufficientBalance
-      ? "bg-red-500/20 text-red-500 cursor-not-allowed border border-red-500/30"
-      : !swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)
-      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-      : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
-  }`}
->
-  {sellToken?.symbol === buyToken?.symbol
-    ? "Select different tokens"
-    : isInsufficientBalance
-    ? `Insufficient ${sellToken?.symbol || "balance"}`
-    : isLoading
-    ? "Fetching Route..."
-    : "Swap"}
-</button> 
-          )}
+      {!isConnected ? (
+        <button
+          onClick={() => openConnectModal?.()}
+          className="w-full mt-4 bg-blue-600 h-[48px] rounded-xl flex justify-center items-center font-bold text-white"
+        >
+          Connect Wallet
+        </button>
+      ) : isInsufficientBalance ? (
+        <button
+          disabled
+          className="w-full mt-4 py-3.5 px-4 rounded-xl font-bold text-base bg-red-500/20 text-red-500 cursor-not-allowed border border-red-500/30"
+        >
+         Insufficient {sellToken?.symbol ? sellToken.symbol : "balance"}  
+        </button>
+      ) : needsApproval ? (
+        <button
+          onClick={handleApprove}
+          disabled={isApproving}
+          className="w-full mt-4 bg-yellow-500 hover:bg-yellow-600 text-black h-[48px] rounded-xl font-bold"
+        >
+          {isApproving ? "Approving..." : `Approve ${sellToken?.symbol}`}
+        </button>
+      ) : (
+        <button
+          onClick={handleExecuteSwap}
+          disabled={!swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)}
+          className={`w-full mt-4 py-3.5 px-4 rounded-xl font-bold text-base transition-all ${
+            !swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)
+              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+          }`}
+        >
+          {sellToken?.symbol === buyToken?.symbol
+            ? "Select different tokens"
+            : isLoading
+            ? "Fetching Route..."
+            : "Swap"}
+        </button>
+      )}
           {/* Swap History Modal */}
       {isHistoryOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">

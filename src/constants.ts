@@ -4,7 +4,8 @@ export interface Token {
   address: string;
   decimals: number;
   logoURI: string;
-}
+  priceUSD?: number;   // ← പുതിയത്
+} 
 
 export const SUPPORTED_TOKENS: Token[] = [
   {
@@ -97,5 +98,47 @@ export const SUPPORTED_TOKENS: Token[] = [
     address: "0x98d0baa52b2d063e780de12f615f963fe8537553",
     decimals: 18,
     logoURI: "https://assets.coingecko.com/coins/images/54411/standard/Qm4DW488_400x400.jpg?1739552780"
-  } 
+  },
+   {
+    symbol: "EURC",
+    name: "EURC",
+    address: "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
+    decimals: 18,
+    logoURI: "https://assets.coingecko.com/coins/images/26045/standard/EURC.png?1769615705"
+  },
+  {
+    symbol: "SOL",
+    name: "Base Bridged SOL",
+    address: "0x311935Cd80B76769bF2ecC9D8Ab7635b2139cf82",
+    decimals: 18,
+    logoURI: "https://assets.coingecko.com/coins/images/71099/standard/solana.jpg?1765793164"
+  },
+  {
+    symbol: "JITOSOL",
+    name: "Jito Staked SOL",
+    address: "0x97bE14Dd8f994A5364573BC035D85309E7CB34de",
+    decimals: 18,
+    logoURI: "https://assets.coingecko.com/coins/images/28046/standard/JitoSOL_Token_Logo_Green.png?1779807693"
+  },
+  {
+    symbol: "POD",
+    name: "Dolphin",
+    address: "0xeD664536023d8E4b1640C394777D34aBAFF1dF8F",
+    decimals: 18,
+    logoURI: "https://assets.coingecko.com/coins/images/70187/standard/1_to_1_Dolphin_imresizer.jpg?1760947185"
+  },
+  {
+    symbol: "TIBBIR",
+    name: "Ribbita by Virtuals",
+    address: "0xA4A2E2ca3fBfE21aed83471D28b6f65A233C6e00",
+    decimals: 18,
+    logoURI: "https://assets.coingecko.com/coins/images/54970/standard/Untitled_design.png?1742941268"
+  },
+  {
+    symbol: "REI",
+    name: "Rei",
+    address: "0x6B2504A03ca4D43d0D73776F6aD46dAb2F2a4cFD",
+    decimals: 18,
+    logoURI: "https://assets.coingecko.com/coins/images/52005/standard/photo_2025-08-05_23.19.12.jpeg?1754448292"
+  }
 ];  
