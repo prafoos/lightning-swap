@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+
 import { useAccount, useBalance } from 'wagmi';
 import { Search, X, Star } from 'lucide-react'; // അല്ലെങ്കിൽ lucide ഇക്കോണുകൾ ഇല്ലാത്തപക്ഷം സാധാരണ SVG ഉപയോഗിക്കാം
 
@@ -56,7 +58,13 @@ export const TokenSelectModal: React.FC<ModalProps> = ({
 }) => {
   const [search, setSearch] = useState('');
 
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   // Search filter logic
   const filteredTokens = tokens.filter(
@@ -69,8 +77,8 @@ export const TokenSelectModal: React.FC<ModalProps> = ({
   // Quick select tokens (top tokens)
   const quickTokens = tokens.slice(0, 4);
 
-  return (
-     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"> 
+  return createPortal(
+     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"> 
       <div className="bg-[#121318] border border-gray-800 text-white w-full max-w-md rounded-2xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
         
         {/* Header */}
@@ -139,5 +147,5 @@ export const TokenSelectModal: React.FC<ModalProps> = ({
     </div>
   </div>
 </div>
-);
+, document.body); 
 };

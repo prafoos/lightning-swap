@@ -64,9 +64,9 @@ export default function Home() {
   </div>
 
   {/* Market Panel */}
-  <div className="w-full max-w-[500px]">
-    <MarketPanel />
-  </div>
+  <div className="w-full max-w-[380px] relative z-0">
+  <MarketPanel />
+</div> 
 </div> 
       </main>
     </Providers>

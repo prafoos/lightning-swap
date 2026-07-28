@@ -37,7 +37,7 @@ export default function MarketPanel() {
   }, []);
 
   return (
-     <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-3xl p-5 backdrop-blur-xl h-full min-h-[480px]">  
+        <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-3xl p-5 backdrop-blur-xl h-full min-h-[480px] relative z-0"> 
       <h2 className="text-lg font-bold text-zinc-100 mb-4">Market</h2>
 
       {loading ? (
