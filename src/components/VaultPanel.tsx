@@ -145,6 +145,15 @@ export default function VaultPanel() {
     query: { enabled: !!address }
   });
 
+  // Read current asset value for the user's vault shares
+  const { data: currentVaultAssets, refetch: refetchCurrentAssets } = useReadContract({
+    address: STEAKHOUSE_VAULT,
+    abi: VAULT_ABI,
+    functionName: 'convertToAssets',
+    args: address && vaultBalance ? [vaultBalance as bigint] : undefined,
+    query: { enabled: !!address && !!vaultBalance }
+  });
+
   // Read Allowance
   const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
     address: USDC_ADDRESS,
@@ -160,8 +169,9 @@ export default function VaultPanel() {
       refetchAllowance();
       refetchUsdc();
       refetchVault();
+      refetchCurrentAssets();
     }
-  }, [isConfirmed, refetchAllowance, refetchUsdc, refetchVault]);
+  }, [isConfirmed, refetchAllowance, refetchUsdc, refetchVault, refetchCurrentAssets]);
 
   if (!mounted) return null; // Prevents Next.js Hydration error
 
@@ -211,8 +221,18 @@ export default function VaultPanel() {
   };
 
   const formattedUsdc = usdcBalance ? formatUnits(usdcBalance as bigint, 6) : "0.0";
-  const formattedVault = vaultBalance ? formatUnits(vaultBalance as bigint, 18) : "0.0"; 
+  const formattedVault = vaultBalance ? formatUnits(vaultBalance as bigint, 18) : "0.0";
 
+  // Convert the user's vault asset value into USDC-equivalent for net profit display
+  const currentAssets = currentVaultAssets
+    ? parseFloat(formatUnits(currentVaultAssets as bigint, 6))
+    : 0;
+
+  const vaultShareAmount = formattedVault ? parseFloat(formattedVault) : 0;
+
+  const netProfit = (currentAssets > 0 && currentAssets > vaultShareAmount)
+    ? (currentAssets - vaultShareAmount).toFixed(4)
+    : "0.0000";   
   return (
     <div className="w-full max-w-md mx-auto p-6 bg-[#181B20] border border-gray-800 rounded-2xl text-white shadow-xl">
       <h2 className="text-xl font-bold text-center mb-2">Earn Yield (Steakhouse USDC)</h2>
@@ -221,7 +241,10 @@ export default function VaultPanel() {
         <span className="text-gray-300">Net APY</span>
         <span className="text-green-400 font-bold">~ {netApy ? `${netApy}%` : "8.50%"}</span> 
       </div>
-
+      <div className="flex justify-between items-center bg-gray-800/40 border border-gray-700/40 px-4 py-2 rounded-xl mb-4 text-sm">
+  <span className="text-gray-300">Earnings / Net Profit</span>
+  <span className="text-green-400 font-bold">+{netProfit} USDC</span>
+</div>
       <div className="flex bg-[#0D0E11] p-1 rounded-xl mb-4 border border-gray-800">
         <button
           onClick={() => { setActiveTab('deposit'); setAmount(''); }}
