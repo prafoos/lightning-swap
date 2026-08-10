@@ -27,6 +27,9 @@ export const metadata: Metadata = {
     ],
   },
   manifest: '/site.webmanifest',
+  other: {
+    'base:app_id': '6a7a0d94f47a7e40e7300820',
+  },
 }; 
 
 export default function RootLayout({
