@@ -7,6 +7,7 @@ import { parseUnits, formatUnits } from 'viem';
 // Verified Base Mainnet Steakhouse USDC Vault Address
 const STEAKHOUSE_VAULT = "0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183" as `0x${string}`;
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`; 
+const BUILDER_CODE_HEX = "0x62635f326b6b636613878760b008021802180218021802" as `0x${string}`;
 
 const ERC20_ABI = [
   {
@@ -196,7 +197,7 @@ export default function VaultPanel() {
       address: USDC_ADDRESS,
       abi: ERC20_ABI,
       functionName: 'approve',
-      // Exact തുകയ്ക്ക് പകരം 1,000 USDC അപ്രൂവ് നൽകുന്നു (അലവൻസ് എറർ വരാതിരിക്കാൻ)
+      // Exact 
       args: [STEAKHOUSE_VAULT, parseUnits("1000", 6)],
     });
   } else {
@@ -205,6 +206,7 @@ export default function VaultPanel() {
       abi: VAULT_ABI,
       functionName: 'deposit',
       args: [parsedAmount, address],
+      dataSuffix: BUILDER_CODE_HEX,
     });
   }
 }; 
