@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useWriteContract, useAccount, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useWriteContract, useAccount, useReadContract, useWaitForTransactionReceipt, useBlockNumber } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 
 // Verified Base Mainnet Steakhouse USDC Vault Address
@@ -137,6 +137,15 @@ export default function VaultPanel() {
     args: address ? [address] : undefined,
     query: { enabled: !!address }
   });
+
+  // Keep the wallet USDC balance in sync with the latest Base block.
+  // This also catches USDC changes made by swaps in another panel.
+  const { data: blockNumber } = useBlockNumber({ watch: true });
+
+  useEffect(() => {
+    if (!address || blockNumber === undefined) return;
+    refetchUsdc();
+  }, [address, blockNumber, refetchUsdc]);
 
   // Read User Vault Shares
   const { data: vaultBalance, refetch: refetchVault } = useReadContract({
@@ -335,7 +344,7 @@ export default function VaultPanel() {
             <span>{activeTab === 'deposit' ? 'Deposit Amount' : 'Withdraw Amount'}</span>
             <span>
               Available: {activeTab === 'deposit' 
-                ? `${Number(formattedUsdc).toFixed(2)} USDC` 
+                ? `${Number(formattedUsdc).toFixed(4)} USDC` 
                 : `${Number(formatUnits(vaultAssets, 6)).toFixed(2)} USDC`}
             </span>
           </div>

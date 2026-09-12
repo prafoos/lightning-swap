@@ -342,6 +342,10 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
 
         alert("Swap Executed Successfully!");
 
+        // Clear the swap amounts after a successful swap.
+        setSellAmount('');
+        setBuyAmount('');
+
       setTimeout(() => {
         refetchAllowance();
         refetchSellBalance();
@@ -476,10 +480,29 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
       <div className="relative h-2 flex items-center justify-center z-10">
         <button
           onClick={handleSwapTokens}
-          className="absolute bg-zinc-900 border border-zinc-800 hover:border-zinc-700 p-2 rounded-xl text-zinc-400 hover:text-white transition shadow-md hover:scale-105 active:scale-95"
+          aria-label="Swap tokens"
+          className="group absolute bg-zinc-900 border border-zinc-800 hover:border-blue-400 p-2 rounded-xl text-zinc-400 hover:text-cyan-300 transition-all duration-300 shadow-md hover:shadow-[0_0_18px_rgba(34,211,238,0.75)] hover:scale-110 active:scale-95 flex flex-col items-center justify-center gap-0.5"
+
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path fillRule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className="transition-transform duration-500 ease-out group-hover:rotate-180"
+          >
+            <path fillRule="evenodd" d="M8 1l4 4H9v5H7V5H4l4-4z"/>
+          </svg>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className="transition-transform duration-500 ease-out group-hover:rotate-180"
+          >
+            <path fillRule="evenodd" d="M8 15l-4-4h3V6h2v5h3l-4 4z"/>
           </svg>
         </button>
       </div>
