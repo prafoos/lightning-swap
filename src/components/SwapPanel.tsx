@@ -156,11 +156,15 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
   : calculatedUSD.toFixed(2);        
   // MAX Button Handler
   const handleMax = () => {
-    if (sellBalanceData?.formatted) {
+    if (sellBalanceData?.value !== undefined) {
       if (sellToken?.symbol === 'ETH') {
-        const maxEth = Math.max(0, parseFloat(sellBalanceData.formatted) - 0.0005);
-        setSellAmount(maxEth.toString());
-      } else {
+        // Keep only a small amount of ETH aside for gas; do not remove 0.0005 ETH.
+        const gasReserve = parseUnits('0.0001', 18);
+        const maxEthWei = sellBalanceData.value > gasReserve
+          ? sellBalanceData.value - gasReserve
+          : BigInt(0);
+        setSellAmount(formatUnits(maxEthWei, 18));
+      } else if (sellBalanceData?.formatted) {
         setSellAmount(sellBalanceData.formatted);
       }
     }
@@ -353,7 +357,7 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
    
 
   return (
-    <div className="w-full max-w-[800px] bg-zinc-900/90 border border-zinc-800/80 rounded-3xl p-6 backdrop-blur-xl">  
+    <div className="w-full max-w-[800px] bg-transparent rounded-3xl p-3 backdrop-blur-xl">  
       {/* Panel Header */}
    <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

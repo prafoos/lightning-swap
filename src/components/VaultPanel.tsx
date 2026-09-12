@@ -81,6 +81,7 @@ export default function VaultPanel() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState('');
+  const [pendingAction, setPendingAction] = useState<'approval' | 'deposit' | 'withdraw' | null>(null);
   // Live APY State & Fetching
   const [netApy, setNetApy] = useState<string | null>(null);
 
@@ -164,15 +165,64 @@ export default function VaultPanel() {
     query: { enabled: !!address }
   });
 
-  // Refetch data after transaction confirms
+  // Refresh balances after every confirmed transaction.
+  // If the confirmed transaction was the USDC approval, automatically
+  // continue with the deposit instead of making the user click again.
   useEffect(() => {
-    if (isConfirmed) {
-      refetchAllowance();
-      refetchUsdc();
-      refetchVault();
-      refetchCurrentAssets();
+    if (!isConfirmed || !hash) return;
+
+    const action = pendingAction;
+
+    const refreshAfterConfirmation = async () => {
+      await Promise.all([
+        refetchAllowance(),
+        refetchUsdc(),
+        refetchVault(),
+      ]);
+      // currentVaultAssets depends on the latest vault share balance,
+      // so refresh it after the vault balance has been re-read.
+      await refetchCurrentAssets();
+    };
+
+    refreshAfterConfirmation();
+
+    if (action === 'approval' && address) {
+      // The approval is confirmed on-chain, so immediately submit the
+      // requested vault deposit using the same amount.
+      const depositAmount = safeParseAmount();
+
+      if (depositAmount > BigInt(0)) {
+        setPendingAction('deposit');
+        writeContract({
+          address: STEAKHOUSE_VAULT,
+          abi: VAULT_ABI,
+          functionName: 'deposit',
+          args: [depositAmount, address],
+          dataSuffix: BUILDER_CODE_HEX,
+        });
+      } else {
+        setPendingAction(null);
+      }
+    } else {
+      // Clear the input only after the deposit/withdraw transaction is
+      // actually confirmed on-chain. Keep the amount during approval so
+      // the automatic deposit can use the exact same value.
+      if (action === 'deposit' || action === 'withdraw') {
+        setAmount('');
+      }
+      setPendingAction(null);
     }
-  }, [isConfirmed, refetchAllowance, refetchUsdc, refetchVault, refetchCurrentAssets]);
+  }, [
+    isConfirmed,
+    hash,
+    pendingAction,
+    address,
+    refetchAllowance,
+    refetchUsdc,
+    refetchVault,
+    refetchCurrentAssets,
+    writeContract,
+  ]);
 
   if (!mounted) return null; // Prevents Next.js Hydration error
 
@@ -186,13 +236,23 @@ export default function VaultPanel() {
   };
 
   const parsedAmount = safeParseAmount();
+  const walletUsdc = (usdcBalance as bigint) || BigInt(0);
+  const vaultAssets = (currentVaultAssets as bigint) || BigInt(0);
+  const hasInsufficientDepositBalance =
+    activeTab === 'deposit' && parsedAmount > walletUsdc;
+  const hasInsufficientWithdrawBalance =
+    activeTab === 'withdraw' && parsedAmount > vaultAssets;
+  const hasInsufficientBalance =
+    hasInsufficientDepositBalance || hasInsufficientWithdrawBalance;
+
   const allowance = (allowanceData as bigint) || BigInt(0);
   const needsApproval = allowance < parsedAmount;
 
   const handleDeposit = () => {
-  if (!address || parsedAmount === BigInt(0)) return;
+  if (!address || parsedAmount === BigInt(0) || hasInsufficientDepositBalance) return;
 
   if (needsApproval) {
+    setPendingAction('approval');
     writeContract({
       address: USDC_ADDRESS,
       abi: ERC20_ABI,
@@ -201,6 +261,7 @@ export default function VaultPanel() {
       args: [STEAKHOUSE_VAULT, parseUnits("1000", 6)],
     });
   } else {
+    setPendingAction('deposit');
     writeContract({
       address: STEAKHOUSE_VAULT,
       abi: VAULT_ABI,
@@ -212,8 +273,9 @@ export default function VaultPanel() {
 }; 
 
   const handleWithdraw = () => {
-    if (!address || parsedAmount === BigInt(0)) return;
+    if (!address || parsedAmount === BigInt(0) || hasInsufficientWithdrawBalance) return;
 
+    setPendingAction('withdraw');
     writeContract({
       address: STEAKHOUSE_VAULT,
       abi: VAULT_ABI,
@@ -237,7 +299,7 @@ export default function VaultPanel() {
     ? (currentAssets - vaultShareAmount).toFixed(4)
     : "0.0000";   
   return (
-    <div className="w-full max-w-md mx-auto p-6 bg-[#181B20] border border-gray-800 rounded-2xl text-white shadow-xl">
+    <div className="ls-panel ls-vault-panel w-full max-w-md mx-auto p-3 bg-transparent rounded-2xl text-white shadow-none">
       <h2 className="text-xl font-bold text-center mb-2">Earn Yield (Steakhouse USDC)</h2>
 
       <div className="flex justify-between items-center bg-blue-600/10 border border-blue-500/20 px-4 py-2 rounded-lg mb-4 text-sm">
@@ -274,7 +336,7 @@ export default function VaultPanel() {
             <span>
               Available: {activeTab === 'deposit' 
                 ? `${Number(formattedUsdc).toFixed(2)} USDC` 
-                : `${Number(formattedVault).toFixed(2)} Vault Shares`}
+                : `${Number(formatUnits(vaultAssets, 6)).toFixed(2)} USDC`}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -286,7 +348,7 @@ export default function VaultPanel() {
               className="w-full bg-transparent text-2xl font-semibold outline-none text-white"
             />
             <button 
-              onClick={() => setAmount(activeTab === 'deposit' ? formattedUsdc : formattedVault)}
+              onClick={() => setAmount(activeTab === 'deposit' ? formattedUsdc : formatUnits(vaultAssets, 6))}
               className="text-xs bg-blue-600/20 text-blue-400 px-2 py-1 rounded hover:bg-blue-600/30"
             >
               MAX
@@ -303,7 +365,7 @@ export default function VaultPanel() {
         {activeTab === 'deposit' ? (
           <button
             onClick={handleDeposit}
-            disabled={!isConnected || isPending || isConfirming || parsedAmount === BigInt(0)}
+            disabled={!isConnected || isPending || isConfirming || parsedAmount === BigInt(0) || hasInsufficientBalance}
             className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 rounded-xl font-bold transition"
           >
             {!isConnected 
@@ -312,6 +374,8 @@ export default function VaultPanel() {
               ? "Check Wallet..." 
               : isConfirming 
               ? "Confirming Transaction..." 
+              : hasInsufficientBalance 
+              ? "Insufficient Balance" 
               : needsApproval 
               ? "Approve USDC" 
               : "Deposit to Vault"}
@@ -319,7 +383,7 @@ export default function VaultPanel() {
         ) : (
           <button
             onClick={handleWithdraw}
-            disabled={!isConnected || isPending || isConfirming || parsedAmount === BigInt(0)}
+            disabled={!isConnected || isPending || isConfirming || parsedAmount === BigInt(0) || hasInsufficientBalance}
             className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:bg-gray-800 disabled:text-gray-500 rounded-xl font-bold transition"
           >
             {!isConnected 
@@ -328,6 +392,8 @@ export default function VaultPanel() {
               ? "Check Wallet..." 
               : isConfirming 
               ? "Confirming Transaction..." 
+              : hasInsufficientBalance 
+              ? "Insufficient Balance" 
               : "Withdraw from Vault"}
           </button>
         )}
