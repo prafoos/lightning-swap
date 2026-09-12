@@ -571,7 +571,7 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
               </button>
             </div>
 
-            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
               {(() => {
                 const savedHistory = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('swap_history') || '[]') : [];
                 if (savedHistory.length === 0) {
