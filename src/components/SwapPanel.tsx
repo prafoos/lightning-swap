@@ -1,6 +1,6 @@
  'use client';
 import React, { useState, useEffect } from 'react';
-import { useAccount, useReadContract, useWriteContract, useBalance, useSendTransaction } from 'wagmi';
+import { useAccount, useReadContract, useWriteContract, useBalance, useSendTransaction, useBlockNumber } from 'wagmi';
 import { useConnectModal, ConnectButton } from '@rainbow-me/rainbowkit';
 import { parseUnits, formatUnits, maxUint256 } from 'viem';
 import { SUPPORTED_TOKENS } from '@/constants';
@@ -175,7 +175,15 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
     query: {
       enabled: !!address,
     },
-  }); 
+  });
+
+  // Keep the "You receive" wallet balance synced with the latest Base block.
+  const { data: buyBalanceBlockNumber } = useBlockNumber({ watch: true });
+
+  useEffect(() => {
+    if (!address || buyBalanceBlockNumber === undefined) return;
+    refetchBuyBalance();
+  }, [address, buyBalanceBlockNumber, refetchBuyBalance]); 
 
   // 3. വിൽക്കാൻ ഉദ്ദേശിക്കുന്ന തുക BigInt ആക്കി മാറ്റുന്നു
   const requiredAmount = sellAmount && !isNaN(Number(sellAmount))
@@ -542,14 +550,14 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
       {!isConnected ? (
         <button
           onClick={() => openConnectModal?.()}
-          className="w-full mt-4 bg-blue-600 h-[48px] rounded-xl flex justify-center items-center font-bold text-white"
+          className="w-full mt-2 bg-blue-600 h-[48px] rounded-xl flex justify-center items-center font-bold text-white"
         >
           Connect Wallet
         </button>
       ) : isInsufficientBalance ? (
         <button
           disabled
-          className="w-full mt-4 py-3.5 px-4 rounded-xl font-bold text-base bg-red-500/20 text-red-500 cursor-not-allowed border border-red-500/30"
+          className="w-full mt-2 py-3.5 px-4 rounded-xl font-bold text-base bg-red-500/20 text-red-500 cursor-not-allowed border border-red-500/30"
         >
          Insufficient {sellToken?.symbol ? sellToken.symbol : "balance"}  
         </button>
@@ -557,7 +565,7 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
         <button
           onClick={handleApprove}
           disabled={isApproving}
-          className="w-full mt-4 bg-yellow-500 hover:bg-yellow-600 text-black h-[48px] rounded-xl font-bold"
+          className="w-full mt-2 bg-yellow-500 hover:bg-yellow-600 text-black h-[48px] rounded-xl font-bold"
         >
           {isApproving ? "Approving..." : `Approve ${sellToken?.symbol}`}
         </button>
@@ -565,7 +573,7 @@ const totalUSDValue = calculatedUSD < 0.01 && calculatedUSD > 0
         <button
           onClick={handleExecuteSwap}
           disabled={!swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)}
-          className={`w-full mt-4 py-3.5 px-4 rounded-xl font-bold text-base transition-all ${
+          className={`w-full mt-2 py-3.5 px-4 rounded-xl font-bold text-base transition-all ${
             !swapQuote || isLoading || (sellToken?.symbol === buyToken?.symbol)
               ? "bg-gray-700 text-gray-400 cursor-not-allowed"
               : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"

@@ -375,7 +375,7 @@ export default function VaultPanel() {
           <button
             onClick={handleDeposit}
             disabled={!isConnected || isPending || isConfirming || parsedAmount === BigInt(0) || hasInsufficientBalance}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 rounded-xl font-bold transition"
+            className="w-full -mt-2 py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 rounded-xl font-bold transition"
           >
             {!isConnected 
               ? "Connect Wallet" 
@@ -393,7 +393,7 @@ export default function VaultPanel() {
           <button
             onClick={handleWithdraw}
             disabled={!isConnected || isPending || isConfirming || parsedAmount === BigInt(0) || hasInsufficientBalance}
-            className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:bg-gray-800 disabled:text-gray-500 rounded-xl font-bold transition"
+            className="w-full -mt-2 py-4 bg-red-600 hover:bg-red-500 disabled:bg-gray-800 disabled:text-gray-500 rounded-xl font-bold transition"
           >
             {!isConnected 
               ? "Connect Wallet" 
